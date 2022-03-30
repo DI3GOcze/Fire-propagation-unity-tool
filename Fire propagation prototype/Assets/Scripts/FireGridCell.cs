@@ -3,12 +3,13 @@ using System.Collections;
 using UnityEngine;
 
 [System.Serializable]
-public class FireGridCell 
+public class FireGridCell : MonoBehaviour
 {
+    // How long cell stays burned
+    [SerializeField] float burnedPersistanceTime = 20f;
+
     public float health;
     public float burnedThreshold;
-
-    
     public delegate void IgnitedAction();
     public event IgnitedAction OnIgnited;    
     [SerializeField] bool _isOnFire = false;
@@ -17,9 +18,32 @@ public class FireGridCell
         get { return _isOnFire; }
         set 
         { 
+            // If value doesnt change dont do anything
+            if(_isOnFire == value)
+                return;
+            
             _isOnFire = value; 
-            if(value == true && OnIgnited != null)
-                OnIgnited();
+            if(value == true)
+            {
+                // If cell is on fire, it cannot be on burned
+                isBurned = false;
+
+                OnIgnited?.Invoke();
+                
+                // Inform objects in cell, that cell is on fire
+                foreach (FireableObject fireableObject in _objectsInCell)
+                {
+                    fireableObject.isInIgnitedCells++;
+                }
+            } 
+            else
+            {
+                // Inform objects in cell, that cell was put down
+                foreach (FireableObject fireableObject in _objectsInCell)
+                {
+                    fireableObject.isInIgnitedCells--;
+                }
+            }
         }
     }
     
@@ -31,82 +55,129 @@ public class FireGridCell
         get { return _isBurned; }
         set 
         { 
+            // If value doesnt change dont do anything
+            if(_isBurned == value)
+                return;
+            
             _isBurned = value; 
+            
             if(value == true && OnBurned != null)
+            {
+                // If cell is burned down, it cannot be on fire
+                isOnFire = false;
                 OnBurned();
+                StartCoroutine(CellBurnnedTimer());
+            }
         }
     }
     
-    private List<GameObject> _references;
+    [SerializeField] List<FireableObject> _objectsInCell;
+    [SerializeField] GameObject _fireParticlesPrefab;
+    [SerializeField] GameObject _fireParticleParent;
     private FireSensor _sensor;
 
-    public FireGridCell(float health = 0, float burnedThreshold = -300, List<GameObject> references = null, FireSensor sensor = null)
-    {
-        this.health = health;
-        this.burnedThreshold = burnedThreshold;
-        this._sensor = sensor;   
-
-        if(references == null)
-        {
-            this._references = new List<GameObject>();
-        } 
-        else
-        {
-            this._references = references;
-        }
+    private void Awake() {
+        _sensor = GetComponent<FireSensor>();
+        _objectsInCell = new List<FireableObject>();
 
         OnIgnited += IgniteCell;
         OnBurned += BurnCell;
+
+        _sensor.OnClicked += SetOnFire;
+        _sensor.OnObjectEntered += AddFireableObject;
+        _sensor.OnObjectExited += RemoveFireableObject;
+    }
+
+    private void Start() {
+        health += health * Random.Range(-0.5f, 0.5f);
+        
+        
     }
 
     public void DestroyReferences()
     {
-        foreach (var item in _references)
+        foreach (var item in _objectsInCell)
         {
             GameObject.Destroy(item);
         }
-        _references.Clear();
+        _objectsInCell.Clear();
     } 
 
+    public void DamageCellObjects()
+    {
+        foreach (FireableObject item in _objectsInCell)
+        {
+                item.DealFireDamage(30 * Time.deltaTime);
+        }
+    }
+
+    // Sets the cell on fire and also sets all objects inside this cell on fire
     public void SetOnFire()
     {
-        health = 0;
         isOnFire = true;
     }
 
-    private void IgniteCell()
-    {
-        _sensor.ChangeColor(Color.red);
-    }
-
-    private void BurnCell()
-    {
-        _sensor.ChangeColor(new Color(0.22f,0.11f,0.1f));
-    }
-
+    // This damages the cell - only for simulation of fire spread 
+    // Doesnt damage objects inside cell, only sets them 
     public void TakeDamage(float damage)
     {       
         // If cell is already burned, dont do anything
         if(isBurned)
             return;
-        
-        if(health <= burnedThreshold)
-        {
-            isBurned = true;
-        }
-        
+               
         health -= damage * Time.deltaTime;
 
-        if(!isOnFire && health <= 0)
-            isOnFire = true; 
+        if(health <= burnedThreshold)
+            isBurned = true;
+
+        // If cell isnt already on fire or isnt already burned and ...
+        if(!isOnFire && !isBurned && health <= 0)
+            SetOnFire();
     }
-    
-    public void AttachSensor(FireSensor sensor)
+
+    // After burnedPersistanceTime resets the cell, so it can be ignited again
+    IEnumerator CellBurnnedTimer()
     {
-        _sensor = sensor;
-        if(_sensor != null)
+        yield return new WaitForSeconds(burnedPersistanceTime);
+        isBurned = false;
+    }
+
+    private void IgniteCell()
+    {
+        Instantiate(_fireParticlesPrefab, _fireParticleParent.transform.position, _fireParticlesPrefab.transform.rotation, _fireParticleParent.transform);
+    }
+
+    private void BurnCell()
+    {
+        foreach (Transform child in _fireParticleParent.transform)
         {
-            _sensor.OnClicked += SetOnFire;
+            Destroy(child.gameObject);
+        }
+    }
+
+    private void AddFireableObject(FireableObject fireableObject)
+    {
+        if(fireableObject == null)
+            return;
+
+        _objectsInCell.Add(fireableObject);   
+
+        // If cell is already on fire when entering
+        if(isOnFire)
+            fireableObject.isInIgnitedCells++;
+    }
+
+    private void RemoveFireableObject(FireableObject fireableObject)
+    {
+        if(fireableObject == null)
+            return;
+        
+        _objectsInCell.Remove(fireableObject);
+
+        // if cell is still on fire, when leaving
+        if(isOnFire)
+        {
+            fireableObject.isInIgnitedCells--;
         }
     }
     

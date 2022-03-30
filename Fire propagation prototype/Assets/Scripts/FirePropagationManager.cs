@@ -17,13 +17,21 @@ public class FirePropagationManager : MonoBehaviour
     public float cellHeightMultiplier = 5;
     public bool enableFollowTerrain = true;
 
+    [SerializeField] int maxIterationPerFrame = 500;
     [SerializeField] float _maxTerrainHeight = 500;
     [SerializeField] LayerMask _terrainMask;
     [SerializeField] GameObject _sensorPrefab;
     [SerializeField] Material _sensorMaterial;
-    [SerializeField] [Range(1f,100f)] float _damageMultiplier;
+    /// <summary>
+    /// Damage that every on fire cell deals to neighbour cells or to it self
+    /// </summary>
+    [SerializeField] [Range(1f,100f)] float _damagePerCell;
     
     private FireGridCell [,] _grid;
+    
+    // This multiplier is required, because if the iteration count is different than 
+    // number of cells, damage to cells can be slowed down or to fast
+    private float iterationScaleMultiplier;
 
     private static FirePropagationManager _instance;
     public static FirePropagationManager Instance { get { return _instance; } }
@@ -41,37 +49,60 @@ public class FirePropagationManager : MonoBehaviour
 
     private void Start()
     {
+        iterationScaleMultiplier = (gridHeight*gridWidth) / maxIterationPerFrame;
+
         _grid = new FireGridCell[gridHeight, gridWidth];
-        InitiateRandom();
-        RenderGrid();
+        // InitiateRandom();
+        CreateFireGrid();
+        StartCoroutine(Test());
+    }
+
+    IEnumerator Test()
+    {
+        int counter = 0;
+
+        while (true)
+        {
+            for (int y = 0; y < gridHeight; y++)
+            {
+                for (int x = 0; x < gridWidth; x++)
+                {
+                    FireGridCell currentCell = _grid[y,x];
+                    var neighbourCells = GetCellNeighbours(x,y);
+                    
+                    int numOnFireCells = 0;
+
+                    // If current cell is on fire, it damages it self and sets all objects inside on fire
+                    if(currentCell.isOnFire)
+                    {
+                        numOnFireCells++;
+                        currentCell.DamageCellObjects();
+                    }
+                        
+                    foreach (FireGridCell cell in neighbourCells)
+                    {
+                        if(cell == null)
+                            continue;
+
+                        if(cell.isOnFire)
+                            numOnFireCells++;
+                    }
+
+                    currentCell.TakeDamage(numOnFireCells * _damagePerCell);
+
+                    // If max iteration per frame exceeded, wait until new frame
+                    if(++counter >= maxIterationPerFrame)
+                    {
+                        counter = 0;
+                        yield return null;
+                    }
+                }
+            }
+        }
     }
 
     private void Update() {
-        for (int y = 0; y < gridHeight; y++)
-        {
-            for (int x = 0; x < gridWidth; x++)
-            {
-                FireGridCell currentCell = _grid[y,x];
-                var cells = GetCellNeighbours(x,y);
-                
-                float damage = 0;
-
-                if(currentCell.isOnFire)
-                    damage++;
-
-                foreach (var item in cells)
-                {
-                    if(item == null)
-                        continue;
-
-                    if(item.isOnFire)
-                        damage++;
-
-                }
-                currentCell.TakeDamage(damage * _damageMultiplier);
-
-            }
-        }
+        
     }
 
     /// <summary>
@@ -135,7 +166,7 @@ public class FirePropagationManager : MonoBehaviour
         return cells;
     }
 
-    void RenderGrid()
+    void CreateFireGrid()
     {
         if(_grid != null)
         {
@@ -145,22 +176,20 @@ public class FirePropagationManager : MonoBehaviour
                 {
                     Vector3 pos = GetCellPosition(x, y);
                     // var sensor = Instantiate(_sensorPrefab, pos, _sensorPrefab.transform.rotation, this.transform);
-                    FireSensor sensor = CreateNewSensor(pos);
-                    sensor._cell = _grid[y,x];
+                    FireGridCell cell = CreateCell(pos);
 
-                    _grid[y,x].AttachSensor(sensor);
+                    _grid[y,x] = cell;
                 }
             }
         }  
     }
 
-    FireSensor CreateNewSensor(Vector3 position)
+    FireGridCell CreateCell(Vector3 position)
     {
-        FireSensor sensor = Instantiate(_sensorPrefab).GetComponent<FireSensor>();
-        sensor.transform.localScale = new Vector3(sensor.transform.localScale.x * cellSize, sensor.transform.localScale.y * cellSize*cellHeightMultiplier, sensor.transform.localScale.z * cellSize);  
-        sensor.transform.position = position;
+        FireGridCell cell = Instantiate(_sensorPrefab, position, _sensorPrefab.transform.rotation, this.transform).GetComponent<FireGridCell>();
+        cell.transform.localScale = new Vector3(cell.transform.localScale.x * cellSize, cell.transform.localScale.y * cellSize , cell.transform.localScale.z * cellSize);  
     
-        return sensor;
+        return cell;
     }
 
     public Vector3 GetCellPosition(int x, int y)
@@ -181,13 +210,6 @@ public class FirePropagationManager : MonoBehaviour
         return position3D;
     }
 
-    // private void OnMouseDown() {
-    //     if(_grid == null)
-    //         return;
-
-    //     KillThemAll();
-    // }   
-
     void KillThemAll()
     {
         for (int y = 0; y < gridHeight; y++)
@@ -199,17 +221,4 @@ public class FirePropagationManager : MonoBehaviour
         }
     }
 
-    void InitiateRandom()
-    {
-        if(_grid != null)
-        {
-            for (int y = 0; y < gridHeight; y++)
-            {
-                for (int x = 0; x < gridWidth; x++)
-                {
-                    _grid[y,x] = new FireGridCell(Random.Range(10f, 80f), -800);
-                }
-            }
-        }
-    }
 }
