@@ -81,7 +81,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   burnedPersistanceTime: 20
-  health: 80
+  health: 40
   burnedThreshold: -3000
   _isOnFire: 0
   _isBurned: 0

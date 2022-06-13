@@ -185,12 +185,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 348775ce700accb4b855e9c39df6080b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gridHeight: 20
-  gridWidth: 20
+  gridHeight: 100
+  gridWidth: 100
   cellSize: 8
   cellHeightMultiplier: 5
   enableFollowTerrain: 1
-  maxIterationPerFrame: 500
+  maxIterationPerFrame: 10000
   _maxTerrainHeight: 500
   _terrainMask:
     serializedVersion: 2

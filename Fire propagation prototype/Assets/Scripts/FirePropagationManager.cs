@@ -52,7 +52,6 @@ public class FirePropagationManager : MonoBehaviour
         iterationScaleMultiplier = (gridHeight*gridWidth) / maxIterationPerFrame;
 
         _grid = new FireGridCell[gridHeight, gridWidth];
-        // InitiateRandom();
         CreateFireGrid();
         StartCoroutine(Test());
     }

@@ -89,9 +89,7 @@ public class FireGridCell : MonoBehaviour
     }
 
     private void Start() {
-        health += health * Random.Range(-0.5f, 0.5f);
-        
-        
+        health += health * Random.Range(-0.8f, 0.8f);
     }
 
     public void DestroyReferences()
@@ -180,5 +178,4 @@ public class FireGridCell : MonoBehaviour
             fireableObject.isInIgnitedCells--;
         }
     }
-    
 }
