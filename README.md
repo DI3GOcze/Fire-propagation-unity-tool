@@ -4,7 +4,7 @@
 
 ##### Autor: Jakub Kryštůfek
 
-##### Description:
+# Description:
 
 This project implements Fire propagation simulation tool for Unity engine. The simulation is based on cellular automaton.
 
